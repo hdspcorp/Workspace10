@@ -98,7 +98,7 @@ input[type="text"], select{width:100%; padding:10px 12px; border-radius:10px; bo
 .client-modal__panel{
   position:relative; margin:10vh auto; width:min(92vw, 520px); max-height:min(78vh, 680px);
   display:flex; flex-direction:column; border:1px solid var(--stroke); border-radius:14px;
-  background:linear-gradient(180deg, rgba(255,255,255,06), rgba(255,255,255,03));
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03)), var(--panel);
   box-shadow:0 24px 48px rgba(0,0,0,45);
 }
 .client-modal__head{
@@ -566,9 +566,16 @@ let pieChart = null;
 let FILTER_MODE = 'items'; // 'items' | 'groups'
 let CLIENT_FILTERS = new Set(); // conjunto de códigos selecionados (vazio = todos)
 
-/* --- Integração (Apps Script) código → nome do cliente --- */
-let CLIENTS_MAP = null; // cache Map<código_normalizado, nome>
-const CLIENT_LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxaTy5dqQEDc7aRLt0tIojMKmG2Laky8NO6Q9tNUPvLTlhSn70H18EOdgsM-XaFYE1q/exec';
+/* --- Integração Google Sheets (código → nome do cliente) --- */
+/* Preencha via variáveis globais (opcional) antes deste arquivo:
+   window.GOOGLE_SHEET_ID = '...';
+   window.GOOGLE_API_KEY  = '...';
+   window.GOOGLE_SHEET_RANGE = 'Clientes!A:B';
+*/
+let CLIENTS_MAP = null; // cache Map<código, nome>
+const GOOGLE_SHEET_ID   = window.GOOGLE_SHEET_ID   || '';
+const GOOGLE_API_KEY    = window.GOOGLE_API_KEY    || '';
+const GOOGLE_SHEET_RANGE= window.GOOGLE_SHEET_RANGE|| 'Clientes!A:B';
 
 // Códigos especiais que devem aparecer como "Licença Interna" (preencha até 10)
 const INTERNAL_LICENSE_CODES = new Set([
@@ -597,6 +604,10 @@ function denoise(s){ return (s||"").normalize('NFD').replace(/[\u0300-\u036f]/g,
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 }
+function normCode(s){
+  const t = String(s||'').trim();
+  return t.replace(/^0+/, ''); // remove zeros à esquerda para comparação/agrupamento
+}
 
 /* Parse de user_id: "12345.abc" → {cliente:"12345", usuario:"abc"} */
 function parseUserId(uid){
@@ -617,38 +628,29 @@ function userIdHTML(uid){
           </div>`;
 }
 
-/* Carrega nomes via seu Apps Script (POST { codes: [...] }) com cache in-memory */
+/* Carrega a planilha (A: código, B: nome) via Sheets API v4, com cache in-memory */
 async function loadClientMap(){
   if (CLIENTS_MAP) return CLIENTS_MAP;
   CLIENTS_MAP = new Map();
-  if (!CLIENT_LOOKUP_URL) return CLIENTS_MAP;
-
-  // Coleta códigos distintos já renderizados (atributo data-client-code)
-  const codes = Array.from(document.querySelectorAll('.client-id[data-client-code]'))
-    .map(el => (el.getAttribute('data-client-code') || '').trim())
-    // normaliza: apenas dígitos e remove zeros à esquerda
-    .map(c => {
-      const m = c.match(/\d+/);
-      const d = m ? m[0].replace(/^0+/, '') : '';
-      return d || '0';
-    })
-    .filter(Boolean);
-  const unique = Array.from(new Set(codes));
-  if (!unique.length) return CLIENTS_MAP;
-
   try{
-    const resp = await fetch(CLIENT_LOOKUP_URL, {
-      method:'POST',
-      headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ codes: unique })
-    });
+    // Permite sobrescrever por window.CLIENTS_API_URL, mas usa seu endpoint por padrão
+    const url = (window.CLIENTS_API_URL ||
+      'https://script.google.com/macros/s/AKfycbxj4ioDcHkBEo-gmz7FufKQwtTFHfW0AkVvksa6WGpeCi1DtZJW9mzBFTvtjVY3rzBj/exec');
+    const resp = await fetch(url, { headers: { 'Accept':'application/json' }});
     if (!resp.ok) throw new Error('HTTP '+resp.status);
-    const json = await resp.json(); // { "41566": "Nome", ... }
-    for (const [k,v] of Object.entries(json || {})){
-      if (k && v) CLIENTS_MAP.set(String(k), String(v));
+    const json = await resp.json();
+    const list = (json && Array.isArray(json.clientes)) ? json.clientes : [];
+    for (const it of list){
+      const code = String(it.codigo||'').trim();
+      const name = String(it.nome||'').trim();
+      if (!code) continue;
+      const nc = normCode(code);
+      // Indexa por código original e pelo código normalizado (sem zeros à esquerda)
+      if (!CLIENTS_MAP.has(code)) CLIENTS_MAP.set(code, name);
+      if (!CLIENTS_MAP.has(nc))   CLIENTS_MAP.set(nc, name);
     }
   }catch(err){
-    console.warn('Falha no lookup de clientes:', err);
+    console.warn('Falha ao carregar clientes (Apps Script):', err);
   }
   return CLIENTS_MAP;
 }
@@ -657,15 +659,10 @@ async function loadClientMap(){
 async function populateClientNames(){
   const map = await loadClientMap();
   document.querySelectorAll('.client-id[data-client-code]').forEach(el=>{
-    const raw  = el.getAttribute('data-client-code') || '';
-    const norm = (()=>{
-      const m = raw.match(/\d+/);
-      const d = m ? m[0].replace(/^0+/, '') : '';
-      return d || '0';
-    })();
-
-    let name = map.get(norm);
-    if (INTERNAL_LICENSE_CODES && (INTERNAL_LICENSE_CODES.has(raw) || INTERNAL_LICENSE_CODES.has(norm))) {
+    const raw = el.getAttribute('data-client-code') || '';
+    const code = normCode(raw);
+    let name = map.get(raw) || map.get(code) || '';
+    if (INTERNAL_LICENSE_CODES && INTERNAL_LICENSE_CODES.has(code)) {
       name = 'Licença Interna';
     }
     const nameEl = el.querySelector('.client-name');
@@ -997,8 +994,8 @@ const passText = (it) => {
   const passClass = (it) => (FILTERS.size === 0 || FILTERS.has(it.classificacao));
   const passClient = (it) => {
   if (!CLIENT_FILTERS || CLIENT_FILTERS.size === 0) return true;
-  const c = parseUserId(it.user_id).cliente || '';
-  return CLIENT_FILTERS.has(c || '');
+  const c = normCode(parseUserId(it.user_id).cliente || '');
+  return CLIENT_FILTERS.has(c);
 };
 
   const matchItem = (it) => passClass(it) && passText(it) && passClient(it);
@@ -1149,8 +1146,8 @@ const passText = (it) => {
   const passClass = (it) => (FILTERS.size === 0 || FILTERS.has(it.classificacao));
   const passClient = (it) => {
   if (!CLIENT_FILTERS || CLIENT_FILTERS.size === 0) return true;
-  const c = parseUserId(it.user_id).cliente || '';
-  return CLIENT_FILTERS.has(c || '');
+  const c = normCode(parseUserId(it.user_id).cliente || '');
+  return CLIENT_FILTERS.has(c);
 };
 
   const matchItem = (it) => passClass(it) && passText(it) && passClient(it);
@@ -1190,65 +1187,137 @@ function exportFull(rows){
 }
 
 /* ===== Relatório — Conferência (por CLIENTE) ===== */
-function exportConferencia(rows){
-  // Agrupa por código do cliente (parte antes do ponto). Sem user_id => "não identificado"
-  const map = new Map(); // código -> {total, correta, falta, incorreta}
+async function exportConferencia(rows){
+  const nameMap = await loadClientMap();
+  const agg = new Map(); // codeNorm -> {label,total,correta,falta,incorreta}
   for (const r of rows){
-    const code = parseUserId(r.user_id).cliente || 'não identificado';
-    if (!map.has(code)) map.set(code, { total:0, correta:0, falta:0, incorreta:0 });
-    const acc = map.get(code);
+    const raw  = parseUserId(r.user_id).cliente || '';
+    const code = normCode(raw) || 'não identificado';
+    const name = nameMap.get(code) || nameMap.get(raw) ||
+                 (INTERNAL_LICENSE_CODES.has(code) ? 'Licença Interna' : '');
+    const label = (code === 'não identificado') ? code : (name ? `${code} — ${name}` : code);
+    if (!agg.has(code)) agg.set(code, { label, total:0, correta:0, falta:0, incorreta:0 });
+    const acc = agg.get(code);
     acc.total += 1;
-    const c = r.classificacao;
-    if (c === 'Correta') acc.correta += 1;
-    else if (c === 'Falta de Documentação') acc.falta += 1;
-    else if (c === 'Incorreta') acc.incorreta += 1;
+    if (r.classificacao === 'Correta') acc.correta += 1;
+    else if (r.classificacao === 'Falta de Documentação') acc.falta += 1;
+    else if (r.classificacao === 'Incorreta') acc.incorreta += 1;
   }
   const header = ['cliente','total','corretas','falta_documentacao','incorretas'];
   const csv = [ header.join(';') ];
-  Array.from(map.entries())
-    .sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'pt-BR', {numeric:true}))
-    .forEach(([code, v])=>{
-      const row = [code, v.total, v.correta, v.falta, v.incorreta];
+  Array.from(agg.values())
+    .sort((a,b)=> String(a.label).localeCompare(String(b.label),'pt-BR',{numeric:true}))
+    .forEach(v=>{
+      const row = [v.label, v.total, v.correta, v.falta, v.incorreta];
       csv.push(row.map(x=>String(x).replace(/"/g,'""')).map(x=>`"${x}"`).join(';'));
     });
   download(`relatorio_conferencia.csv`, csv.join('\n'));
 }
 
-/* ===== Menu dinâmico de clientes ===== */
-function buildClientFilterMenu(rows){
-  const menu = document.getElementById('clientMenu');
-  if (!menu) return;
-
-  // Contagem por cliente (todos os dados importados)
-  const counts = new Map(); // code -> qtd
-  for (const r of rows){
-    const code = parseUserId(r.user_id).cliente || 'não identificado';
-    counts.set(code, (counts.get(code)||0)+1);
+/* ===== Modal de Clientes (lista + aplicação do filtro) ===== */
+function buildClientEntries(){
+  const counts = new Map();
+  for (const r of (DATA||[])){
+    const raw = parseUserId(r.user_id).cliente || '';
+    if (!raw) continue;
+    const c = normCode(raw);
+    counts.set(c, (counts.get(c)||0)+1);
   }
-  const entries = Array.from(counts.entries())
-    .sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'pt-BR', {numeric:true}));
-
-  // Monta HTML
-  let html = `<button type="button" data-client="">Todos os clientes</button>`;
-  for (const [code, qtd] of entries){
-    const label = `${code} — ${qtd}`;
-    const val = (code === 'não identificado') ? '' : code;
-    html += `<button type="button" data-client="${val}">${label}</button>`;
+  return Array.from(counts.entries()).map(([code,count])=>({code,count}));
+}
+async function fillClientModalList(){
+  const listEl = document.getElementById('clientModalList');
+  if (!listEl) return;
+  const map = await loadClientMap();
+  const items = buildClientEntries()
+    .sort((a,b)=> String(a.code).localeCompare(String(b.code),'pt-BR',{numeric:true}));
+  if (!items.length){
+    listEl.innerHTML = '<div class="client-modal__empty">Nenhum cliente encontrado nos dados importados.</div>';
+    return;
   }
-  menu.innerHTML = html;
-
-  // Eventos
-  menu.querySelectorAll('button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const val = btn.getAttribute('data-client') || '';
-      CLIENT_FILTER = val || null;
-      const fbtn = document.getElementById('btnFilterClient');
-      if (fbtn) fbtn.textContent = CLIENT_FILTER ? `Cliente: ${CLIENT_FILTER}` : 'Filtrar por cliente';
-      menu.classList.add('hidden');
-      render();
-    });
+  const row = (it)=>{
+    const name = map.get(it.code) || '';
+    const label = name ? `${it.code} — ${name}` : it.code;
+    const checked = CLIENT_FILTERS.has(it.code) ? 'checked' : '';
+    return `<label class="client-option">
+              <input type="checkbox" value="${it.code}" ${checked}>
+              <span>${label}</span>
+              <small class="small">(${it.count})</small>
+            </label>`;
+  };
+  listEl.innerHTML = items.map(row).join('');
+}
+function updateClientFilterText(){
+  const n = (CLIENT_FILTERS && CLIENT_FILTERS.size) ? CLIENT_FILTERS.size : 0;
+  document.querySelectorAll('#btnFilterClient').forEach(btn=>{
+    if (!btn) return;
+    btn.textContent = n === 0 ? 'Filtrar por cliente'
+      : (n === 1 ? `Cliente: ${[...CLIENT_FILTERS][0]}` : `Clientes: ${n}`);
+  });
+  document.querySelectorAll('#btnClearClients').forEach(clr=>{
+    if (clr) clr.disabled = n === 0;
   });
 }
+async function openClientModal(){
+  await fillClientModalList();
+  const modal = document.getElementById('clientModal');
+  if (modal){ modal.classList.add('open'); }
+  const s = document.getElementById('clientModalSearch');
+  if (s){ s.value=''; s.focus(); }
+}
+function closeClientModal(){
+  const modal = document.getElementById('clientModal');
+  if (modal){ modal.classList.remove('open'); }
+}
+(function wireClientModal(){
+  const modal = document.getElementById('clientModal');
+  if (!modal) return;
+
+  // abrir (há 2 botões com o mesmo id no layout)
+  document.querySelectorAll('#btnFilterClient').forEach(btn=>{
+    btn.addEventListener('click', openClientModal);
+  });
+
+  // limpar filtro global
+  document.querySelectorAll('#btnClearClients').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      CLIENT_FILTERS.clear();
+      updateClientFilterText();
+      render();
+      fillClientModalList();
+    });
+  });
+
+  // fechar por backdrop/botão com data-close
+  modal.addEventListener('click', (e)=>{ if (e.target && e.target.dataset && e.target.dataset.close){ closeClientModal(); }});
+
+  // aplicar seleção
+  document.getElementById('clientModalApply')?.addEventListener('click', ()=>{
+    const listEl = document.getElementById('clientModalList');
+    const sel = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+    CLIENT_FILTERS = new Set(sel);
+    updateClientFilterText();
+    render();          // atualiza a preview com apenas os clientes marcados
+    closeClientModal();
+  });
+
+  // limpar dentro do modal
+  document.getElementById('clientModalClear')?.addEventListener('click', ()=>{
+    CLIENT_FILTERS.clear();
+    updateClientFilterText();
+    render();
+    fillClientModalList();
+  });
+
+  // busca local na lista
+  document.getElementById('clientModalSearch')?.addEventListener('input', (e)=>{
+    const q = denoise((e.target.value||'').toLowerCase());
+    document.querySelectorAll('#clientModalList .client-option').forEach(opt=>{
+      const txt = denoise(opt.textContent||'').toLowerCase();
+      opt.style.display = txt.includes(q) ? '' : 'none';
+    });
+  });
+})();
 
 /* ===================== Gráfico (toggle) ===================== */
 function computeStats(rows){
@@ -1479,104 +1548,102 @@ function setDone(code, on){
     document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') toggle(false); });
   })();
 </script>
-<!-- Modal: Selecionar Cliente -->
+
+<!-- Modal de clientes (visual alinhado ao app) -->
 <div id="clientModal" class="client-modal" aria-hidden="true">
-  <div class="client-modal__backdrop" id="clientModalBackdrop" tabindex="-1"></div>
-  <div class="client-modal__panel" role="dialog" aria-modal="true" aria-label="Selecionar cliente">
+  <div class="client-modal__backdrop" data-close="1"></div>
+  <div class="client-modal__panel" role="dialog" aria-modal="true" aria-labelledby="clientModalTitle">
     <div class="client-modal__head">
-      <div>Selecionar cliente</div>
-      <button id="clientModalClose" class="btn" aria-label="Fechar">Fechar</button>
+      <div id="clientModalTitle">Filtrar por cliente</div>
+      <button type="button" class="btn" data-close="1">Fechar</button>
     </div>
     <div class="client-modal__body">
       <div class="client-modal__search">
-        <input id="clientSearch" type="text" placeholder="Buscar código ou nome do cliente..." autocomplete="off">
+        <input id="clientModalSearch" type="search" placeholder="Buscar cliente por código ou nome">
       </div>
-      <div id="clientList" class="client-modal__list">
-        <div class="client-modal__empty">Nenhum cliente encontrado.</div>
-      </div>
+      <div id="clientModalList" class="client-modal__list"></div>
     </div>
     <div class="client-modal__foot">
-  <button id="clientApply" class="btn primary">Aplicar</button>
-  <button id="clientClear" class="btn">Limpar seleção</button>
-  <button id="clientModalClose" class="btn">Cancelar</button>
-</div>
+      <button id="clientModalClear" class="btn" type="button">Limpar</button>
+      <button id="clientModalApply" class="btn primary" type="button">Aplicar</button>
+    </div>
   </div>
 </div>
 
 <script>
-/* ===== MODAL de clientes (UI) ===== */
-function openClientModal(){ try{
-  buildClientModalList(DATA);
-  document.getElementById('clientModal').classList.add('open');
-  const sb = document.getElementById('clientSearch'); if (sb){ sb.value=''; sb.focus(); }
-}catch{} }
-
-function closeClientModal(){
-  const m = document.getElementById('clientModal'); if (m) m.classList.remove('open');
-}
-
-/* Lista de clientes distinta (pelo código, parte antes do ponto) */
-function distinctClientCodes(rows){
-  const set = new Set();
-  (rows||[]).forEach(r=>{
-    const c = (parseUserId(r.user_id)||{}).cliente || '';
-    if (c) set.add(c);
-  });
-  return Array.from(set).sort((a,b)=> a.localeCompare(b));
-}
-
-/* Constrói a lista (com nomes, se houver planilha configurada) */
-async function buildClientModalList(rows){
-  const list = document.getElementById('clientList');
-  if (!list) return;
-  const codes = distinctClientCodes(rows);
-  const map = await loadClientMap(); // segura se não configurado
-  if (!codes.length){
-    list.innerHTML = '<div class="client-modal__empty">Nenhum cliente encontrado.</div>';
-    return;
+// Modal de clientes: constrói lista "código — nome (qtd)" com normalização (sem zeros à esquerda)
+(function(){
+  function buildEntries(){
+    const counts = new Map(); // codeNorm -> qtd
+    for (const r of (DATA||[])){
+      const raw = parseUserId(r.user_id).cliente || '';
+      if (!raw) continue;
+      const c = normCode(raw);
+      counts.set(c, (counts.get(c)||0)+1);
+    }
+    return Array.from(counts.entries()).map(([code,count])=>({code,count}));
   }
-  list.innerHTML = codes.map(code=>{
-  const name = map.get(code) || '';
-  const label = name ? `${code} — ${name}` : code;
-  const checked = (CLIENT_FILTERS && CLIENT_FILTERS.has(code)) ? 'checked' : '';
-  return `<label class="client-option">
-            <input type="checkbox" data-code="${escapeHtml(code)}" ${checked}>
-            <span>${escapeHtml(label)}</span>
-          </label>`;
-}).join('');
-}
-
-/* Interações do modal (multiseleção) */
-document.addEventListener('click', function(e){
-  const id = e.target.id;
-  if (id === 'clientModalClose' || id === 'clientModalBackdrop'){ closeClientModal(); return; }
-  if (id === 'clientClear'){
-    CLIENT_FILTERS.clear();
-    const btn = document.getElementById('btnFilterClient'); if (btn) btn.textContent = 'Filtrar por cliente';
-    const clr = document.getElementById('btnClearClients'); if (clr) clr.disabled = true;
-    if (typeof render === 'function') render();
-    closeClientModal(); return;
+  async function fillList(){
+    const listEl = document.getElementById('clientModalList');
+    const map = await loadClientMap();
+    const items = buildEntries().sort((a,b)=> String(a.code).localeCompare(String(b.code),'pt-BR',{numeric:true}));
+    if (!items.length){
+      listEl.innerHTML = '<div class="client-modal__empty">Nenhum cliente encontrado nos dados importados.</div>';
+      return;
+    }
+    const row = (it)=>{
+      const name = map.get(it.code) || '';
+      const label = name ? `${it.code} — ${name}` : it.code;
+      const checked = CLIENT_FILTERS.has(it.code) ? 'checked' : '';
+      return `<label class="client-option"><input type="checkbox" value="${it.code}" ${checked}><span>${label}</span><small class="small">(${it.count})</small></label>`;
+    };
+    listEl.innerHTML = items.map(row).join('');
   }
-  if (id === 'clientApply'){
-    const sel = Array.from(document.querySelectorAll('#clientList input[type="checkbox"]:checked'))
-      .map(cb => cb.getAttribute('data-code') || '');
-    CLIENT_FILTERS = new Set(sel);
+  function wire(){
+    const modal = document.getElementById('clientModal');
+    const listEl = document.getElementById('clientModalList');
+
+    modal.addEventListener('click', (e)=>{ if (e.target && e.target.dataset && e.target.dataset.close){ closeClientModal(); }});
+    document.getElementById('clientModalClear').addEventListener('click', ()=>{
+      CLIENT_FILTERS.clear();
+      updateClientFilterText();
+      render();
+      fillList();
+    });
+    document.getElementById('clientModalApply').addEventListener('click', ()=>{
+      const sel = Array.from(listEl.querySelectorAll('input[type="checkbox"]:checked')).map(i=>i.value);
+      CLIENT_FILTERS = new Set(sel);
+      updateClientFilterText();
+      render();
+      closeClientModal();
+    });
+    document.getElementById('clientModalSearch').addEventListener('input', (e)=>{
+      const q = denoise(e.target.value||'').toLowerCase();
+      listEl.querySelectorAll('.client-option').forEach(opt=>{
+        const txt = denoise(opt.textContent||'').toLowerCase();
+        opt.style.display = txt.includes(q) ? '' : 'none';
+      });
+    });
+  }
+  window.openClientModal = async function openClientModal(){
+    await fillList();
+    document.getElementById('clientModal').classList.add('open');
+    document.getElementById('clientModalSearch').focus();
+  };
+  window.closeClientModal = function closeClientModal(){
+    document.getElementById('clientModal').classList.remove('open');
+  };
+  window.updateClientFilterText = function(){
     const btn = document.getElementById('btnFilterClient');
     const clr = document.getElementById('btnClearClients');
-    const n = CLIENT_FILTERS.size;
-    if (btn) btn.textContent = n === 0 ? 'Filtrar por cliente' : (n === 1 ? `Cliente: ${[...CLIENT_FILTERS][0]}` : `Clientes: ${n}`);
+    const n = (CLIENT_FILTERS && CLIENT_FILTERS.size) ? CLIENT_FILTERS.size : 0;
+    if (btn) btn.textContent = n === 0 ? 'Filtrar por cliente' :
+      (n === 1 ? `Cliente: ${[...CLIENT_FILTERS][0]}` : `Clientes: ${n}`);
     if (clr) clr.disabled = n === 0;
-    if (typeof render === 'function') render();
-    closeClientModal(); return;
-  }
-});
-document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeClientModal(); });
-document.getElementById('clientSearch')?.addEventListener('input', function(e){
-  const q = (e.target.value||'').toLowerCase();
-  document.querySelectorAll('#clientList .client-option').forEach(row=>{
-    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-  });
-});
+  };
+  // inicializa handlers do modal
+  wire();
+})();
 </script>
 
 </body>
