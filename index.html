@@ -1,0 +1,1583 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Workspace • Curadoria</title>
+
+<!-- Chart.js (gráfico pizza) -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+<style>
+:root{
+  --bg:#0f1216;
+  --panel:#141923;
+  --panel-2:#0f151d;
+  --stroke:#222935;
+  --text:#e8edf4;
+  --muted:#a8b2c1;
+  --accent:#86b0ff;
+  --accent-2:#6ee7c6;
+  --danger:#ff6b6b;
+  --warn:#f7c948;
+  --ok:#55d88a;
+  --neutral:#a0a7b4;
+  --radius:12px;
+  --shadow:0 14px 36px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:
+    radial-gradient(1200px 600px at 18% -10%, #1b2332 0%, transparent 60%),
+    radial-gradient(900px 520px at 88% -20%, #171f2b 0%, transparent 60%),
+    var(--bg);
+  color:var(--text); font:14px/1.6 'Montserrat',-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,"Helvetica Neue",Arial;
+}
+
+/* Header */
+header{position:sticky; top:0; z-index:30; background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)), var(--panel); border-bottom:1px solid var(--stroke); box-shadow:var(--shadow);}
+.header-inner{max-width:1280px;margin:0 auto;padding:14px 18px; display:flex; align-items:center; gap:16px; justify-content:space-between;}
+h1{font-size:18px;margin:0; letter-spacing:.3px}
+.header-actions{display:flex; gap:10px; align-items:center}
+.btn{
+  appearance:none; border:1px solid var(--stroke);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  color:var(--text); padding:10px 14px; border-radius:10px; cursor:pointer; font-weight:600; letter-spacing:.2px;
+}
+.btn:hover{box-shadow:0 10px 26px rgba(0,0,0,.3); transform:translateY(-1px)}
+.btn.primary{border-color:#4362ff; background:linear-gradient(180deg, rgba(67,98,255,.25), rgba(67,98,255,.12));}
+
+/* Layout */
+.container{max-width:1920px; margin:18px auto; padding:0 18px; display:grid; grid-template-columns: 320px 1fr; gap:18px;}
+@media (max-width: 980px){ .container{grid-template-columns:1fr} }
+aside{position:sticky; top:76px; align-self:start; background:var(--panel); border:1px solid var(--stroke); border-radius:var(--radius); padding:14px; box-shadow:var(--shadow);}
+.section{margin-bottom:14px}
+.section h3{margin:0 0 8px; font-size:12px; font-weight:800; letter-spacing:.35px; color:var(--muted); text-transform:uppercase; text-align:center; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.control{display:flex; flex-direction:column; gap:8px}
+input[type="text"], select{width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--stroke); background:var(--panel-2); color:var(--text);}
+.filters{display:flex; flex-direction:column; gap:6px; max-height:230px; overflow:auto; padding-right:4px}
+.filter-item{display:flex; align-items:center; gap:8px}
+.filter-item span{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis;}
+.filter-item input{accent-color:#5aa6ff}
+.small{color:var(--muted); font-size:12px}
+
+/* Botão/label elegante para arquivo */
+.file-row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+.file-btn{display:inline-flex; align-items:center; gap:8px; cursor:pointer}
+.file-btn input{display:none}
+#fileName{max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+
+/* Painéis */
+.panel{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)), var(--panel); border:1px solid var(--stroke); border-radius:var(--radius); box-shadow:var(--shadow);}
+.totals{padding:12px; display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:flex-start;}
+.badge{display:inline-flex; align-items:center; gap:8px; border:1px solid var(--stroke); border-radius:999px; padding:8px 12px; background:var(--panel-2);}
+.badge .dot{display:inline-block; width:10px; height:10px; border-radius:50%}
+.dot.ok{background:var(--ok)}
+.dot.err{background:var(--danger)}
+.dot.warn{background:var(--warn)}
+.dot.inv{background:var(--accent)}
+.dot.other{background:var(--neutral)}
+.badge b{font-weight:800}
+.result-bar{
+  display:flex; align-items:center; gap:10px; justify-content:space-between;
+  padding:10px 12px; border-top:1px solid var(--stroke);
+  position:relative; min-height:40px;
+}
+.result-actions{ display:flex; align-items:center; gap:8px; }
+/* Itens do modal em lista (multiseleção) */
+.client-option{ display:flex; align-items:center; gap:8px; padding:8px 10px; border-bottom:1px solid var(--stroke); }
+.client-option:last-child{ border-bottom:0; }
+.client-option input{ cursor:pointer; }
+
+/* Modal de clientes */
+.client-modal{ display:none; position:fixed; inset:0; z-index:1300; }
+.client-modal.open{ display:block; }
+.client-modal__backdrop{ position:absolute; inset:0; background:rgba(0,0,0,.55); backdrop-filter: blur(2px); }
+.client-modal__panel{
+  position:relative; margin:10vh auto; width:min(92vw, 520px); max-height:min(78vh, 680px);
+  display:flex; flex-direction:column; border:1px solid var(--stroke); border-radius:14px;
+  background:linear-gradient(180deg, rgba(255,255,255,06), rgba(255,255,255,03));
+  box-shadow:0 24px 48px rgba(0,0,0,45);
+}
+.client-modal__head{
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:12px 14px; border-bottom:1px solid var(--stroke); font-weight:800; letter-spacing:.2px;
+}
+.client-modal__body{ padding:12px; display:grid; gap:10px; }
+.client-modal__search{ height:var(--field-h); border:1px solid var(--stroke); border-radius:10px; padding:0 10px; background:var(--panel-2); display:flex; align-items:center; }
+.client-modal__search input{ width:100%; height:calc(var(--field-h) - 10px); border:0; outline:0; background:transparent; color:var(--text); font:inherit; }
+.client-modal__list{ overflow:auto; border:1px solid var(--stroke); border-radius:12px; background:var(--panel-2); }
+.client-modal__item{ width:100%; text-align:left; padding:10px 12px; border:0; background:transparent; color:var(--text); cursor:pointer; font-weight:700; display:block; }
+.client-modal__item:hover{ background:rgba(255,255,255,04); }
+.client-modal__empty{ padding:14px; color:var(--muted); }
+.client-modal__foot{ padding:10px 14px; display:flex; justify-content:flex-end; gap:8px; border-top:1px solid var(--stroke); }
+
+/* reforço anti-transbordo e simetria nos cards */
+.card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; min-width:0;}
+.head-left{display:flex; align-items:center; gap:10px; min-width:0;}
+.head-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap; min-width:0;}
+.block-body{ white-space:pre-wrap; padding:10px 12px; background:#0f141b; overflow:auto; overflow-wrap:anywhere; word-break:break-word; }
+.count{color:var(--muted)}
+
+/* Cards */
+.cards{ padding:12px; display:grid; grid-template-columns:1fr; gap:12px}
+.card{border:1px solid var(--stroke); border-radius:12px; background:var(--panel-2); padding:12px; display:grid; gap:10px; transition:opacity .18s ease, border-color .18s ease; overflow:hidden;}
+.card.done{opacity:.55; border-color:#2a3342;}
+.card-head{display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap}
+.head-left{display:flex; align-items:center; gap:10px}
+.head-right{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+
+/* Código em pill */
+.code{
+  font-weight:900; letter-spacing:.4px; padding:6px 10px; border-radius:999px;
+  border:1px solid rgba(134,176,255,.28);
+  background:linear-gradient(180deg, rgba(134,176,255,.10), rgba(134,176,255,.04));
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
+}
+
+/* Chips */
+.cls-chip{
+  font-weight:800; color:var(--text);
+  padding:6px 10px; border-radius:999px; border:1px solid var(--stroke);
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+}
+.cls-ok{ background: rgba(85,216,138,.12); border-color: rgba(85,216,138,.35); }
+.cls-err{ background: rgba(255,107,107,.12); border-color: rgba(255,107,107,.35); }
+.cls-warn{ background: rgba(247,201,72,.14); border-color: rgba(247,201,72,.38); }
+.cls-inv{ background: rgba(134,176,255,.14); border-color: rgba(134,176,255,.38); }
+.cls-other{ background: rgba(160,167,180,.12); border-color: rgba(160,167,180,.35); }
+
+/* Tag "Corrigido" */
+.corr-chip{
+  padding:4px 10px; font-weight:700; border-radius:999px;
+  border:1px solid rgba(85,216,138,.35); background:rgba(85,216,138,.12);
+  color:var(--text); letter-spacing:.2px;
+  min-width:110px;            /* reserva espaço fixo p/ não deslocar o select */
+  text-align:center;
+  opacity:0; visibility:hidden; transition:opacity .15s ease;
+}
+.corr-chip.is-on{
+  opacity:1; visibility:visible;
+}
+
+/* Checkbox estilizado */
+.checkbox{
+  appearance:none; width:18px; height:18px; border:1px solid var(--stroke); border-radius:6px;
+  background:var(--panel); display:inline-grid; place-content:center; cursor:pointer; transition:all .15s ease;
+}
+.checkbox:focus{ outline:2px solid rgba(67,98,255,.35); outline-offset:2px; }
+.checkbox::after{
+  content:""; width:12px; height:12px; transform:scale(0); border-radius:3px; background:#4362ff; transition: transform .12s ease;
+}
+.checkbox:checked{ border-color:#4362ff; background:linear-gradient(180deg, rgba(67,98,255,.25), rgba(67,98,255,.12)); box-shadow:0 6px 18px rgba(67,98,255,.25) inset; }
+.checkbox:checked::after{ transform:scale(1); }
+.inline-control{display:inline-flex; align-items:center; gap:8px; font-weight:700}
+
+/* Dropdown ao lado da TAG original */
+.cls-select{
+  background:var(--panel); border:1px solid var(--stroke); color:var(--text);
+  padding:8px 10px; border-radius:10px; font-weight:700; min-width:200px;
+}
+.small-label{color:var(--muted); font-weight:700}
+
+/* Blocos Pergunta/Resposta com título */
+.block{
+  border:1px solid var(--stroke); border-radius:12px; overflow:hidden; background:var(--panel-2);
+}
+.block-title{
+  padding:8px 12px; font-weight:900; letter-spacing:.3px;
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  border-bottom:1px solid var(--stroke);
+}
+.block-body{ white-space:pre-wrap; padding:10px 12px; background:#0f141b; }
+
+/* Avaliação do Agente */
+.eval{border:1px dashed var(--stroke); border-radius:10px; background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02)); padding:10px;}
+.eval h4{margin:0 0 8px; font-size:13px; letter-spacing:.2px}
+.eval .kv{display:grid; grid-template-columns: 190px 1fr; gap:6px 10px}
+.eval .k{color:var(--muted); font-weight:700}
+.eval .v{white-space:pre-wrap}
+
+/* Gráfico (compacto, centralizado e recolhível) */
+.chart-wrap{padding:10px 12px; border-top:1px solid var(--stroke); display:none}
+.chart-wrap.visible{display:block}
+.chart-inner{
+  display:grid; grid-template-columns:auto 1fr; align-items:center; justify-content:center; gap:18px;
+}
+.chart-canvas{ display:flex; justify-content:center; align-items:center; }
+#pieChart{ width:320px !important; height:180px !important; }
+.legend-list{list-style:none; margin:0; padding:0;}
+.legend-item{display:flex; align-items:center; gap:8px; margin:4px 0; color:var(--muted)}
+.swatch{width:10px; height:10px; border-radius:50%}
+.chart-counts{margin-top:8px; color:var(--muted); font-size:12px}
+
+@media (max-width: 980px){
+  .chart-inner{ grid-template-columns: 1fr; }
+  .legend-list{ display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+}
+
+/* Divisor por grupo */
+.group-sep{ display:flex; align-items:center; gap:10px; margin:18px 12px 6px; grid-column:1 / -1; }
+.group-sep .line{flex:1; height:1px; background:var(--stroke); border-radius:1px;}
+.group-sep .label{
+  padding:6px 10px; border-radius:999px; border:1px solid var(--stroke);
+  background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+  font-weight:800; color:var(--muted); letter-spacing:.3px;
+}
+
+/* Identificação do cliente (abaixo do separador / dentro do card) */
+.client-id{
+  margin: 0px 0 0px;
+  padding: 0px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.client-id .small-label{ opacity:.9; }
+.client-id .client-name{ white-space:nowrap; }
+@media (max-width: 980px){ .client-id{ flex-wrap: wrap; } }
+
+/* Estados */
+.hidden{display:none !important}
+
+/* Modo foco / compacto */
+body.focus aside, body.focus #totalsPanel{display:none !important}
+body.focus .container{grid-template-columns:1fr}
+body.compact .cards{ gap:8px; padding:8px }
+body.compact .card{ padding:10px }
+body.compact .badge{ padding:6px 10px }
+
+/* ——— App Switcher ——— */
+.app-switcher { position: absolute; right: 16px; top: 16px; z-index: 1000; }
+.app-switcher__btn {
+  border: 1px solid var(--border, rgba(255,255,255,.15));
+  background: linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  color: var(--fg, #e5e7eb);
+  padding: 8px 12px; border-radius: 12px; font-weight: 700; letter-spacing: .2px;
+  cursor: pointer; box-shadow: 0 8px 24px rgba(0,0,0,.25); backdrop-filter: blur(6px);
+}
+.app-switcher__btn:hover { transform: translateY(-1px); }
+.app-switcher__menu {
+  position: absolute; right: 0; margin-top: 8px; min-width: 260px; padding: 8px; border-radius: 14px;
+  border: 1px solid var(--border, rgba(255,255,255,.12));
+  background: linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.95));
+  box-shadow: 0 20px 40px rgba(0,0,0,.35);
+  display: none;
+}
+.app-switcher.open .app-switcher__menu { display: block; }
+.app-switcher__item {
+  display: flex; align-items: center; gap: 10px; padding: 10px 10px; border-radius: 10px; text-decoration: none;
+  color: var(--fg, #e5e7eb); border: 1px solid transparent;
+}
+.app-switcher__item small { color: var(--muted, #9aa4b2); display:block; margin-top:2px }
+.app-switcher__item:hover { background: rgba(255,255,255,.04); border-color: rgba(255,255,255,.08); }
+header { position: relative; }
+
+/* ——— Ajuda (FAB no canto inferior direito) ——— */
+.help-fab{
+  position: fixed; right: 18px; bottom: 18px; z-index: 1200;
+}
+.help-fab .help-hint{
+  display:inline-flex; align-items:center; justify-content:center;
+  width:36px; height:36px; border-radius:50%;
+  border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+  color:#e8edf4; font-weight:800; cursor:pointer;
+  box-shadow:0 10px 24px rgba(0,0,0,.35); user-select:none;
+}
+.help-fab .help-hint:focus{ outline:2px solid rgba(255,255,255,.18); outline-offset:2px }
+.help-fab.open .help-bubble{ display:block; }
+
+.help-bubble{
+  display:none; position:fixed; right:18px; bottom:68px; z-index:1201;
+  width:min(560px, calc(100vw - 36px)); max-height:min(70vh, 680px); overflow:auto;
+  padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.12);
+  background:linear-gradient(180deg, rgba(15,23,42,.98), rgba(15,23,42,.95));
+  box-shadow:0 24px 48px rgba(0,0,0,.45);
+  color:#d9e2ef; font-size:13px; line-height:1.55;
+}
+.help-bubble h4{ margin:0 0 8px 0; font-size:14px; letter-spacing:.2px }
+.help-bubble b{ font-weight:800 }
+.help-bubble ol{ margin:6px 0 0 16px; padding:0 }
+.help-bubble li{ margin:6px 0 }
+.help-bubble .muted{ color:#9aa4b2 }
+
+</style>
+<!-- Fontes (igual ao Transmissor) -->
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+<!-- Fonte apenas para a “assinatura” do Workspace -->
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&display=swap" rel="stylesheet">
+
+<style id="theme-override">
+  /* ====== Tokens e base visual espelhando o Transmissor ====== */
+  :root{
+    --bg:#0a0f1a;
+    /* mapeando os nomes já usados no Workspace p/ as superfícies do Transmissor */
+    --panel:#0c1424;        /* surface   */
+    --panel-2:#101a2b;      /* surface2  */
+    --stroke:rgba(255,255,255,.10);
+    --text:#e7eeff;
+    --muted:#9bb0c9;
+    --accent1:#60a5fa; --accent2:#a78bfa; --accent3:#22d3ee;
+    --grad:linear-gradient(135deg,var(--accent1) 0%, var(--accent2) 50%, var(--accent3) 100%);
+    --radius:12px;
+    --field-h:40px; --gap:12px;
+  }
+  html, body{
+    min-height:100vh;
+    background: radial-gradient(120% 120% at 0% 0%, #0b1220 0%, #070d17 60%);
+    color:var(--text);
+    font-family:'Montserrat','Segoe UI',Arial,sans-serif;
+    font-size:15px;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* ====== Remover a barra superior e aproximar o conteúdo ====== */
+  header{ display:none !important; } /* esconde “linha superior” c/ Modo Foco/Compacto */
+  .title{ display:none !important; }
+  .container{ margin-top: 12px !important; }
+
+  /* Sidebar sobe, mantendo respiro */
+  aside{ top:18px !important; border-color:var(--stroke) !important; background:
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02)), var(--panel) !important;
+    border-radius:var(--radius) !important; }
+
+  /* ====== Cartões, painéis e acabamentos premium ====== */
+  .card, .panel, .box, .section{
+    background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)) !important;
+    border:1px solid var(--stroke) !important;
+    border-radius:18px !important;
+    box-shadow:0 24px 64px rgba(0,0,0,.45) !important;
+  }
+  .card:hover{ transform:translateY(-1px); box-shadow:0 28px 70px rgba(0,0,0,.55); }
+
+  /* fundo dos blocos de pergunta/resposta */
+  .block-body, .question pre, .answer pre{
+    background:#0b1422 !important;
+    border:1px solid var(--stroke) !important;
+    border-radius:12px !important;
+    padding:12px !important;
+  }
+
+  /* ====== Botões padronizados ====== */
+  .btn{
+    border:1px solid var(--stroke) !important;
+    background:linear-gradient(135deg, rgba(255,255,255,.06), rgba(255,255,255,.02)) !important;
+    color:var(--text) !important;
+    min-height:var(--field-h) !important;
+    padding:0 14px !important;
+    border-radius:12px !important;
+    font-weight:700 !important;
+    letter-spacing:.2px !important;
+    box-shadow:0 8px 24px rgba(0,0,0,.25) !important;
+    backdrop-filter:blur(6px);
+  }
+  .btn:hover{ transform:translateY(-1px); }
+/* Ajuste fino só para o botão de filtro de cliente */
+#btnFilterClient{
+  font-weight:600 !important;
+  text-align:left !important;
+}
+  .btn.primary{
+    background:var(--grad) !important;
+    border-color:transparent !important;
+    color:#05121a !important;  /* contraste igual ao Transmissor */
+  }
+
+  /* ====== Campos (inputs/select/textarea) ====== */
+  input[type="text"], input[type="number"], input[type="search"], select, textarea{
+    height:var(--field-h) !important;
+    border:1px solid var(--stroke) !important;
+    border-radius:12px !important;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02)) !important;
+    color:var(--text) !important;
+  }
+  input::placeholder, textarea::placeholder{ color:var(--muted) !important; }
+  input:focus, select:focus, textarea:focus{
+    outline:2px solid rgba(34,211,238,.25) !important;
+    outline-offset:2px !important;
+    border-color:rgba(255,255,255,.18) !important;
+  }
+
+  /* Badges e chips */
+  .badge{ background:linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
+          border:1px solid var(--stroke); border-radius:10px; }
+
+  /* Checkboxes marcadas com o mesmo “accent” */
+  input[type="checkbox"]:checked{
+    background-image:var(--grad) !important;
+    border-color:transparent !important;
+  }
+
+  /* Ajuda (FAB) com o mesmo gradiente do Transmissor */
+  .help-fab .help-hint{
+    background:var(--grad) !important;
+    color:#05121a !important;
+    border:none !important;
+    box-shadow:0 8px 24px rgba(0,0,0,.35) !important;
+  }
+
+  /* “Logo” do Workspace, estilo assinatura, só visual (sem mudar layout) */
+  aside::before{
+    content:"Workspace";
+    display:block;
+    margin:6px 6px 0 6px;
+    font-family:'Caveat', cursive;
+    font-size:26px; line-height:1;
+    background:var(--grad);
+    -webkit-background-clip:text; background-clip:text;
+    color:transparent;
+    text-shadow:0 2px 12px rgba(34,211,238,.18);
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <h1>Workspace</h1>
+    <nav class="app-switcher" aria-label="Outros aplicativos">
+      <button id="appSwitcherBtn" class="app-switcher__btn" type="button">HDSP CORP. ▾</button>
+      <div id="appSwitcherMenu" class="app-switcher__menu" role="menu">
+        <a class="app-switcher__item" role="menuitem" href="LINK_DO_ANALISADOR" target="_blank" rel="noopener">
+          <div><strong>Analisador</strong><small>Importa JSON e envia os grupos para avaliação</small></div>
+        </a>
+        <a class="app-switcher__item" role="menuitem" href="LINK_DO_CONVERSOR" target="_blank" rel="noopener">
+          <div><strong>Conversor</strong><small>Converte arquivos em TXT, ou gera packs</small></div>
+        </a>
+      </div>
+    </nav>
+    <div class="header-actions">
+      <button id="focusBtn" class="btn" title="Oculta filtros e totais para focar na leitura">Modo Foco</button>
+      <button id="compactBtn" class="btn" title="Reduz espaços para sessões longas">Modo Compacto</button>
+    </div>
+  </div>
+</header>
+
+<div class="app-frame">
+  <div class="app-frame">
+  <div class="container">
+  <aside>
+    <div class="section">
+      <h3>Arquivo</h3>
+      <div class="control file-row">
+        <label class="btn file-btn" for="fileInput">Escolher arquivo
+          <input type="file" id="fileInput" accept=".json">
+        </label>
+        <span id="fileName" class="small">Nenhum arquivo selecionado</span>
+        <span class="small" style="flex-basis:100%"></span>
+      </div>
+    </div>
+
+    <div class="section">
+  <h3>Busca</h3>
+  <input type="text" id="searchBox" placeholder="Pesquisar em tudo (código / pergunta / resposta)">
+</div>
+
+<!-- NOVO: busca específica -->
+<div class="section">
+  <h3>Busca específica</h3>
+  <div class="control">
+    <input type="text" id="searchQ" placeholder="Filtrar apenas em Pergunta">
+    <input type="text" id="searchA" placeholder="Filtrar apenas em Resposta">
+
+<!-- Botão de filtro por cliente agora mora neste card -->
+<button id="btnFilterClient" class="btn hidden">Filtrar por cliente</button>
+<!-- A lista de clientes agora é exibida em um modal (HTML inserido no final do <body>) -->
+
+    <span class="small">Dica: você pode usar os três campos juntos</span>
+  </div>
+</div>
+
+    <div class="section">
+      <h3>Modo dos filtros</h3>
+      <div class="control">
+        <label class="filter-item">
+          <input type="radio" name="filterMode" value="items" checked>
+          Mostrar apenas as interações que atendem aos filtros
+        </label>
+        <label class="filter-item">
+          <input type="radio" name="filterMode" value="groups">
+          Mostrar grupos das interações que atendem aos filtros
+        </label>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>Classificações</h3>
+      <div id="filters" class="filters"></div>
+      <div class="small"></div>
+    </div>
+
+    <div class="section">
+  <h3>Relatórios</h3>
+  <div class="control">
+    <button id="exportConferencia" class="btn">Relatório — Conferência</button>
+    <span class="small"></span>
+  </div>
+</div>
+
+  </aside>
+
+  <main>
+    <section id="totalsPanel" class="panel">
+      <div class="totals" id="totals"></div>
+      <div class="result-bar">
+  <div class="count" id="resultCount">0 itens</div>
+  <div class="result-actions">
+    <button id="btnFilterClient"   class="btn hidden" title="Selecionar um ou mais clientes">Filtrar por cliente</button>
+    <button id="btnClearClients"   class="btn hidden" title="Remover todos os filtros de cliente">Limpar filtro</button>
+    <button id="btnChart"          class="btn hidden">Exibir gráfico de assertividade</button>
+  </div>
+</div>
+
+      <div class="chart-wrap" id="chartWrap">
+        <div class="chart-inner">
+          <div class="chart-canvas">
+            <canvas id="pieChart" aria-label="Gráfico de assertividade"></canvas>
+          </div>
+          <ul class="legend-list" id="chartLegendList"></ul>
+        </div>
+        <div class="chart-counts" id="chartCounts"></div>
+      </div>
+    </section>
+
+    <section id="resultsPanel" class="panel" style="margin-top:12px;">
+      <div class="cards" id="cards"></div>
+    </section>
+    </main>
+  </div>
+</div>
+
+<script>
+/* ===================== Estado ===================== */
+let RAW = null;
+let DATA = [];   // [{grupo, codigo, pergunta, resposta, classificacao, classificacaoEmoji, avaliacao:{...}}]
+let FILTERS = new Set();
+let ALL_CLASSES = [];
+let SEARCH = "";
+let SEARCH_Q = "";   // novo: busca só em Pergunta
+let SEARCH_A = "";   // novo: busca só em Resposta
+let CURRENT_FILE_NAME = "";
+let pieChart = null;
+let FILTER_MODE = 'items'; // 'items' | 'groups'
+let CLIENT_FILTERS = new Set(); // conjunto de códigos selecionados (vazio = todos)
+
+/* --- Integração (Apps Script) código → nome do cliente --- */
+let CLIENTS_MAP = null; // cache Map<código_normalizado, nome>
+const CLIENT_LOOKUP_URL = 'https://script.google.com/macros/s/AKfycbxaTy5dqQEDc7aRLt0tIojMKmG2Laky8NO6Q9tNUPvLTlhSn70H18EOdgsM-XaFYE1q/exec';
+
+// Códigos especiais que devem aparecer como "Licença Interna" (preencha até 10)
+const INTERNAL_LICENSE_CODES = new Set([
+  /* 1 */ '',
+  /* 2 */ '',
+  /* 3 */ '',
+  /* 4 */ '',
+  /* 5 */ '',
+  /* 6 */ '',
+  /* 7 */ '',
+  /* 8 */ '',
+  /* 9 */ '',
+  /* 10 */ ''
+]);
+
+/* ===================== Utilidades ===================== */
+const $  = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+function download(filename, text){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], {type: 'text/plain;charset=utf-8'}));
+  a.download = filename; a.click(); URL.revokeObjectURL(a.href);
+}
+function stripEmoji(str){ return (str||"").replace(/[\p{Emoji_Presentation}\p{Emoji}\uFE0F]/gu, '').trim(); }
+function denoise(s){ return (s||"").normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function escapeHtml(s){
+  return (s||'').replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+}
+
+/* Parse de user_id: "12345.abc" → {cliente:"12345", usuario:"abc"} */
+function parseUserId(uid){
+  const m = String(uid||'').trim().match(/^(\d+)\.(.+)$/);
+  return m ? { cliente: m[1], usuario: m[2] } : { cliente: '', usuario: '' };
+}
+
+/* HTML para exibir a identificação; nome do cliente é preenchido depois */
+function userIdHTML(uid){
+  const {cliente, usuario} = parseUserId(uid);
+  if (!cliente) return '';
+  const usuarioTxt = usuario ? ` &bull; Usuário: ${escapeHtml(usuario)}` : '';
+  /* client-name será preenchido pelo populateClientNames() */
+  return `<div class="client-id" data-client-code="${escapeHtml(cliente)}">
+            <span class="small-label">Cliente:</span>
+            <span class="client-code">${escapeHtml(cliente)}</span>
+            <span class="client-name"></span>${usuarioTxt}
+          </div>`;
+}
+
+/* Carrega nomes via seu Apps Script (POST { codes: [...] }) com cache in-memory */
+async function loadClientMap(){
+  if (CLIENTS_MAP) return CLIENTS_MAP;
+  CLIENTS_MAP = new Map();
+  if (!CLIENT_LOOKUP_URL) return CLIENTS_MAP;
+
+  // Coleta códigos distintos já renderizados (atributo data-client-code)
+  const codes = Array.from(document.querySelectorAll('.client-id[data-client-code]'))
+    .map(el => (el.getAttribute('data-client-code') || '').trim())
+    // normaliza: apenas dígitos e remove zeros à esquerda
+    .map(c => {
+      const m = c.match(/\d+/);
+      const d = m ? m[0].replace(/^0+/, '') : '';
+      return d || '0';
+    })
+    .filter(Boolean);
+  const unique = Array.from(new Set(codes));
+  if (!unique.length) return CLIENTS_MAP;
+
+  try{
+    const resp = await fetch(CLIENT_LOOKUP_URL, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ codes: unique })
+    });
+    if (!resp.ok) throw new Error('HTTP '+resp.status);
+    const json = await resp.json(); // { "41566": "Nome", ... }
+    for (const [k,v] of Object.entries(json || {})){
+      if (k && v) CLIENTS_MAP.set(String(k), String(v));
+    }
+  }catch(err){
+    console.warn('Falha no lookup de clientes:', err);
+  }
+  return CLIENTS_MAP;
+}
+
+/* Preenche os nomes de cliente nos cards já renderizados */
+async function populateClientNames(){
+  const map = await loadClientMap();
+  document.querySelectorAll('.client-id[data-client-code]').forEach(el=>{
+    const raw  = el.getAttribute('data-client-code') || '';
+    const norm = (()=>{
+      const m = raw.match(/\d+/);
+      const d = m ? m[0].replace(/^0+/, '') : '';
+      return d || '0';
+    })();
+
+    let name = map.get(norm);
+    if (INTERNAL_LICENSE_CODES && (INTERNAL_LICENSE_CODES.has(raw) || INTERNAL_LICENSE_CODES.has(norm))) {
+      name = 'Licença Interna';
+    }
+    const nameEl = el.querySelector('.client-name');
+    if (nameEl && name && !nameEl.dataset.filled){
+      nameEl.textContent = ` — ${name}`;
+      nameEl.dataset.filled = '1';
+    }
+  });
+}
+
+/* realça o termo da busca no HTML já “escapado” */
+function highlight(escapedHtml, term){
+  const q = (term||"").trim();
+  if (!q) return escapedHtml;
+  try{
+    const esc = q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+    const re  = new RegExp(esc, 'gi');
+    return escapedHtml.replace(re, m => `<mark>${m}</mark>`);
+  }catch{ return escapedHtml; }
+}
+
+/* NORMALIZAÇÃO de classificação (mantém compat com históricos) */
+function normalizeClassName(s){
+  const raw   = (s||'').trim();
+  const lower = denoise(stripEmoji(raw)).toLowerCase();
+
+  if (raw.includes('✅')) return 'Correta';
+  if (raw.includes('❌') || raw.includes('✖') || /\b[xX]\b/.test(raw)) return 'Incorreta';
+  if (raw.includes('⚠️') || raw.includes('⚠')) return 'Falta de Documentação';
+  if (raw.includes('🔎')) return 'Pergunta investigativa';
+
+  if (/\bcorret[ao]?\b/.test(lower)) return 'Correta';
+  if (/\bincorret[ao]?\b|\berrad[oa]\b|\bnao atende\b|\bnão atende\b|\binadequad[oa]\b|\bimprocedent[ea]\b|\bincabivel\b|\bincabível\b/.test(lower)) return 'Incorreta';
+  if (lower.includes('falta') && (lower.includes('document') || lower.includes('doc'))) return 'Falta de Documentação';
+  if (/\binvestigativ[ao]?\b/.test(lower)) return 'Pergunta investigativa';
+
+  return 'Sem classificação';
+}
+function withEmoji(cls){
+  switch(cls){
+    case 'Correta': return '✅ Correta';
+    case 'Incorreta': return '❌ Incorreta';
+    case 'Falta de Documentação': return '⚠️ Falta de Documentação';
+    case 'Pergunta investigativa': return '🔎 Pergunta investigativa';
+    case 'Sem classificação': return '⭕ Sem classificação';
+    default: return cls;
+  }
+}
+function colorDotFor(cls){
+  if (cls==='Correta') return 'ok';
+  if (cls==='Incorreta') return 'err';
+  if (cls==='Falta de Documentação') return 'warn';
+  if (cls==='Pergunta investigativa') return 'inv';
+  return 'other';
+}
+function chipClassFor(cls){
+  if (cls==='Correta') return 'cls-ok';
+  if (cls==='Incorreta') return 'cls-err';
+  if (cls==='Falta de Documentação') return 'cls-warn';
+  if (cls==='Pergunta investigativa') return 'cls-inv';
+  return 'cls-other';
+}
+function classColor(cls){
+  if (cls==='✅ Correta' || cls==='Correta') return '#55d88a';
+  if (cls==='❌ Incorreta' || cls==='Incorreta') return '#ff6b6b';
+  if (cls==='⚠️ Falta de Documentação' || cls==='Falta de Documentação') return '#f7c948';
+  if (cls==='🔎 Pergunta investigativa' || cls==='Pergunta investigativa') return '#86b0ff';
+  return '#a0a7b4';
+}
+
+/* Ordenação por código */
+function codeParts(code){
+  const m = (code||'').match(/^([A-Z]{2})(\d+)-(\d+)$/);
+  if (!m) return {g: 9999, i: 9999};
+  return { g: parseInt(m[2],10), i: parseInt(m[3],10) };
+}
+function groupLabelFromCode(code){ const {g} = codeParts(code); return 'GR'+String(g).padStart(2,'0'); }
+function compareByGroup(a,b){
+  const A = codeParts(a.codigo), B = codeParts(b.codigo);
+  if (A.g !== B.g) return A.g - B.g;
+  return A.i - B.i;
+}
+
+/* ===================== Parser ===================== */
+/* … (idêntico ao anterior; suporta [INICIO_INTERACAO]/[FIM_INTERACAO] e legado) */
+function splitByTagBlocks(text){
+  const lines = (text || '').replace(/\r/g,'').split('\n');
+  const blocks = []; let cur = null;
+  for (let i=0;i<lines.length;i++){
+    const raw = lines[i]; const line = raw.trim();
+    if (/^\[INICIO_INTERACAO\]\s*$/i.test(line)){ if (cur){ blocks.push(cur); } cur = { code:'', text:'' }; continue; }
+    if (/^\[FIM_INTERACAO\]\s*$/i.test(line)){ if (cur){ blocks.push(cur); cur = null; } continue; }
+    if (cur){
+      cur.text += raw + '\n';
+      const m = line.match(/^(?:\[[^\]]+\]\s*)?Intera[çc][aã]o:\s*([A-Z]{2}\d+-\d+)/i);
+if (m) cur.code = m[1].trim();
+    }
+  }
+  if (cur){ blocks.push(cur); }
+  return blocks.filter(b => b.text.trim().length > 0);
+}
+function splitByLegacyBlocks(text){
+  const lines = (text || '').replace(/\r/g,'').split('\n');
+  const blocks = []; let cur = null;
+  for (let i=0;i<lines.length;i++){
+    const raw = lines[i]; const line = raw.trim();
+    const m = line.match(/^(?:\[[^\]]+\]\s*)?Intera[çc][aã]o:\s*([A-Z]{2}\d+-\d+)/i);
+if (m){ if (cur) blocks.push(cur); cur = { code:m[1].trim(), text:'' }; continue; }
+    if (cur){ cur.text += raw + '\n'; }
+  }
+  if (cur) blocks.push(cur);
+  return blocks;
+}
+function splitAssistantBlocks(text){
+  const byTags = splitByTagBlocks(text);
+  if (byTags.length) return byTags;
+  return splitByLegacyBlocks(text);
+}
+function matchField(text, re){
+  const flags = re.flags?.replace?.('g','') || '';
+  const rex = new RegExp('(?:\\[[^\\]]+\\]\\s*)?' + re.source, flags);
+  const m = text.match(rex);
+  return m ? (m[1] || '').trim() : '';
+}
+function matchBlock(text, startRe){
+  const flags = startRe.flags?.replace?.('g','') || '';
+  const start = new RegExp('(?:\\[[^\\]]+\\]\\s*)?' + startRe.source, flags);
+  const idx = text.search(start);
+  if (idx === -1) return '';
+  const after = text.slice(idx).replace(start,'');
+  const end = new RegExp(
+    '\\n(?:\\s*(?:\\[[^\\]]+\\]\\s*)?(?:' +
+      'Classifica[çc][aã]o:|' +
+      'Justificativa\\s*\\(curta\\)\\s*:|' +
+      'Documentos\\s+utilizados\\s*:|' +
+      'Evid[eê]ncias\\s*\\(contagem\\)\\s*:|' +
+      'Sugest[aã]o\\s+de\\s+melhoria\\s*:|' +
+      'Pergunta\\s*:|' +
+      'Resposta\\s*Kiara\\s*:|' +
+      'Intera[çc][aã]o:' +
+    ')|\\s*\\[FIM_INTERACAO\\]\\s*$)',
+    'i'
+  );
+  const m = after.search(end);
+  return (m === -1 ? after : after.slice(0, m)).trim();
+}
+function parseJson(json){
+  const out = [];
+  const convs = (json.conversations || [json]).filter(Boolean);
+
+  for (const conv of convs){
+    const messages = conv.messages || [];
+
+    // Vamos coletar:
+    // (a) TODAS as interações vindas de role:"user" (novo formato)
+    // (b) As avaliações do role:"assistant" (para anexar por código)
+    const interacoes = [];
+    const evalByCode = new Map();     // codigo -> {classificacao, justificativa, docs, sugestao, ...}
+    const detailsByCode = new Map();  // fallback visual (caso ainda venham Pergunta/Resposta nas TAGs)
+
+    // 1) Varrer TODAS as mensagens
+    for (const msg of messages){
+      const role = (msg.role || '').toLowerCase();
+
+      // 1a) Novo formato: user.content contém JSON com { grupo, interacoes:[{codigo, pergunta, resposta}] }
+      if (role === 'user'){
+        const txt = (msg.content || '').trim();
+
+        // Tenta parse direto quando começa com "{"
+        if (txt.startsWith('{')) {
+          try{
+            const obj = JSON.parse(txt);
+            const grupo = obj.grupo || conv.id || '';
+            if (Array.isArray(obj.interacoes)){
+              for (const it of obj.interacoes){
+                  interacoes.push({
+                  grupo: grupo,
+                  codigo: it.codigo || '',
+                  pergunta: it.pergunta || '',
+                  resposta: it.resposta || '',
+                  user_id: it.user_id || ''
+                });
+              }
+            }
+          }catch(e){
+            // Se não for JSON válido, ignoramos silenciosamente este bloco
+          }
+        } else {
+          // (opcional) conteúdo não-JSON: ignorar
+        }
+      }
+
+      // 1b) Avaliações no assistant (mantém compatibilidade e anexa por código)
+      if (role === 'assistant'){
+        const text = (msg.content || '').replace(/\r/g,'');
+        const blocks = splitAssistantBlocks(text); // sua função existente que quebra [INICIO_INTERACAO]...[FIM_INTERACAO]
+
+        for (const {code, text: body} of blocks){
+          // garante o código
+          let codeFinal = code;
+          if (!codeFinal){
+            const mCode = body.match(/^(?:\[[^\]]+\]\s*)?Intera[çc][aã]o:\s*([A-Z]{2}\d{2}-\d{2})/im);
+            if (mCode) codeFinal = mCode[1].trim();
+          }
+          if (!codeFinal) continue;
+
+          // captura campos de avaliação
+          const clsLine      = matchField(body, /Classifica[çc][aã]o:\s*([^\n]+)/i);
+          const clsNorm      = normalizeClassName(clsLine);
+          const justificativa= matchBlock(body, /Justificativa\s*\(curta\)\s*:\s*/i);
+          const docs         = matchBlock(body, /Documentos\s+utilizados\s*:\s*/i);
+          const sugestao     = matchBlock(body, /Sugest[aã]o\s+de\s+melhoria\s*:\s*/i);
+
+          evalByCode.set(codeFinal, {
+            classificacao: clsNorm,
+            classificacaoEmoji: clsLine && clsLine.trim(),
+            justificativa: justificativa || '',
+            docs: docs || '',
+            sugestao: sugestao || ''
+          });
+
+          // Fallback (LEGADO): se ainda vierem Pergunta/Resposta nas TAGs do assistant
+          const perguntaTxt = matchBlock(body, /Pergunta\s*:\s*/i);
+          const respostaTxt = matchBlock(body, /Resposta\s*(?:Kiara)?\s*:\s*/i);
+          if (perguntaTxt || respostaTxt){
+            detailsByCode.set(codeFinal, {
+              pergunta: (perguntaTxt || '').trim(),
+              resposta: (respostaTxt || '').trim()
+            });
+          }
+        }
+      }
+    } // fim do for messages
+
+    // 2) Fallback: se NENHUMA interação veio do user, tenta montar a partir das TAGs antigas do assistant
+    if (!interacoes.length && detailsByCode.size){
+      for (const code of detailsByCode.keys()){
+        const det = detailsByCode.get(code) || {};
+        interacoes.push({
+          grupo: groupLabelFromCode(code),
+          codigo: code,
+          pergunta: det.pergunta || '',
+          resposta: det.resposta || ''
+        });
+      }
+    }
+
+    // 3) Monta as linhas finais combinando Interações + Avaliações
+    for (const it of interacoes){
+      if (!it.codigo) continue; // ignora itens sem código
+      const ev = evalByCode.get(it.codigo) || {classificacao:'Sem classificação', classificacaoEmoji:'⭕ Sem classificação'};
+            out.push({
+        grupo: it.grupo || conv.id || '',
+        codigo: it.codigo,
+        pergunta: it.pergunta,
+        resposta: it.resposta,
+        classificacao: ev.classificacao,
+        classificacaoEmoji: ev.classificacaoEmoji || withEmoji(ev.classificacao),
+        avaliacao: ev,
+        user_id: it.user_id || ''
+      });
+    }
+  } // fim do for convs
+
+  // 4) Consolida por código (última ocorrência prevalece) e ordena por grupo/código
+  const byCode = new Map();
+  for (const row of out){
+    byCode.set(row.codigo, {...(byCode.get(row.codigo)||{}), ...row});
+  }
+  return Array.from(byCode.values()).sort(compareByGroup);
+}
+
+/* ===================== Renderização ===================== */
+function buildFilters(){
+  const box = $('#filters'); box.innerHTML='';
+  const list = ALL_CLASSES;
+  for (const cls of list){
+    const id = 'f_'+cls.replace(/\s+/g,'_');
+    const row = document.createElement('label');
+    row.className='filter-item';
+    row.innerHTML = `<input type="checkbox" id="${id}"><span>${withEmoji(cls)}</span>`;
+    box.appendChild(row);
+    row.querySelector('input').addEventListener('change', (e)=>{
+      if (e.target.checked) FILTERS.add(cls); else FILTERS.delete(cls);
+      render();
+    });
+  }
+}
+
+/* Dropdown: só 3 opções; se a atual não está nas opções, mostra “— manter —” */
+function classificationOptionsHTML(selected){
+  const allowed = [
+    {v:'Correta', t:'✅ Correta'},
+    {v:'Incorreta', t:'❌ Incorreta'},
+    {v:'Falta de Documentação', t:'⚠️ Falta de Documentação'}
+  ];
+  const isAllowed = allowed.some(a => a.v === selected);
+  const head = isAllowed ? '' : `<option value="" selected disabled>— manter —</option>`;
+  return head + allowed.map(o=>`<option value="${o.v}" ${o.v===selected?'selected':''}>${o.t}</option>`).join('');
+}
+
+function render(){
+  const cards = $('#cards'); const totals = $('#totals'); const resultCount = $('#resultCount');
+  cards.innerHTML = ''; totals.innerHTML = '';
+
+  const textAll = (SEARCH || '').trim().toLowerCase();
+const textQOnly = (SEARCH_Q || '').trim().toLowerCase();
+const textAOnly = (SEARCH_A || '').trim().toLowerCase();
+
+const passText = (it) => {
+  // 1) Busca geral (onde quiser encontrar: código/pergunta/resposta)
+  if (textAll) {
+    const okAll =
+      (it.pergunta || '').toLowerCase().includes(textAll) ||
+      (it.resposta || '').toLowerCase().includes(textAll) ||
+      (it.codigo   || '').toLowerCase().includes(textAll);
+    if (!okAll) return false;
+  }
+  // 2) Filtro só em Pergunta (se preenchido)
+  if (textQOnly) {
+    if (!(it.pergunta || '').toLowerCase().includes(textQOnly)) return false;
+  }
+  // 3) Filtro só em Resposta (se preenchido)
+  if (textAOnly) {
+    if (!(it.resposta || '').toLowerCase().includes(textAOnly)) return false;
+  }
+  return true;
+};
+  const passClass = (it) => (FILTERS.size === 0 || FILTERS.has(it.classificacao));
+  const passClient = (it) => {
+  if (!CLIENT_FILTERS || CLIENT_FILTERS.size === 0) return true;
+  const c = parseUserId(it.user_id).cliente || '';
+  return CLIENT_FILTERS.has(c || '');
+};
+
+  const matchItem = (it) => passClass(it) && passText(it) && passClient(it);
+
+  let filtered = [];
+  if (FILTER_MODE === 'items') {
+    filtered = DATA.filter(matchItem).sort(compareByGroup);
+  } else {
+    const matchedGroups = new Set(
+      DATA.filter(matchItem).map(it => groupLabelFromCode(it.codigo))
+    );
+    filtered = DATA
+      .filter(it => matchedGroups.has(groupLabelFromCode(it.codigo)) && passText(it))
+      .sort(compareByGroup);
+  }
+
+  // Totais (sobre o conjunto total)
+  const countBy = {};
+  for (const r of DATA){ countBy[r.classificacao] = (countBy[r.classificacao]||0)+1; }
+  const total = DATA.length || 1;
+  const order = ['Correta','Incorreta','Falta de Documentação','Pergunta investigativa','Sem classificação'];
+  const classesOrdenadas = [...Object.keys(countBy)].sort((a,b)=>{
+    const ia=order.indexOf(a), ib=order.indexOf(b);
+    return (ia===-1?99:ia)-(ib===-1?99:ib)||a.localeCompare(b);
+  });
+  for (const cls of classesOrdenadas){
+    const count = countBy[cls], pct = Math.round(count*100/total), dot = colorDotFor(cls);
+    const el = document.createElement('div');
+    el.className='badge';
+    el.innerHTML = `<span class="dot ${dot}"></span><span>${withEmoji(cls)}</span><b>${count}</b><span class="small">(${pct}%)</span>`;
+    totals.appendChild(el);
+  }
+
+  // Distintos clientes no conjunto filtrado (somente com código válido)
+  const distinctClients = new Set(filtered.map(it => parseUserId(it.user_id).cliente).filter(Boolean)).size;
+  resultCount.textContent = `${filtered.length} itens • ${distinctClients} cliente${distinctClients===1?'':'s'}`;
+
+  // Cards + divisores por grupo
+  let lastGroup = null;
+  for (const r of filtered){
+    const gLabel = groupLabelFromCode(r.codigo);
+    if (gLabel !== lastGroup){
+      const sep = document.createElement('div');
+      sep.className = 'group-sep';
+      sep.innerHTML = `<div class="line"></div><div class="label">Grupo ${gLabel}</div><div class="line"></div>`;
+      cards.appendChild(sep);
+      lastGroup = gLabel;
+    }
+
+    const done = getDone(r.codigo);
+    const chipCls = chipClassFor(r.classificacao);
+
+    const card = document.createElement('div');
+    card.className='card' + (done ? ' done' : '');
+
+const evalBox = buildEvalBox(r.avaliacao);
+card.innerHTML = `
+  <div class="card-head">
+    <div class="head-left">
+      <span class="code">${r.codigo}</span>
+      <label class="inline-control" title="Marcar como corrigido">
+        <input type="checkbox" class="checkbox mark-done" data-code="${r.codigo}" ${done?'checked':''}>
+        <span>Corrigido</span>
+      </label>
+    </div>
+    <div class="head-right">
+      <label class="inline-control" title="Alterar classificação">
+        <span class="small-label">Classificação</span>
+        <select id="sel-${r.codigo}" class="cls-select" data-code="${r.codigo}">
+          ${classificationOptionsHTML(r.classificacao)}
+        </select>
+      </label>
+
+      <div class="cls-chip ${chipCls}">${r.classificacaoEmoji || withEmoji(r.classificacao)}</div>
+      <!-- Chip sempre presente; só alternamos .is-on -->
+      <div class="corr-chip ${done ? 'is-on' : ''}" data-code="${r.codigo}">Corrigido</div>
+    </div>
+  </div>
+
+  ${userIdHTML(r.user_id)}
+
+  <div class="block">
+    <div class="block-title">Pergunta</div>
+    <div class="block-body">${highlight(escapeHtml(r.pergunta), (SEARCH_Q || SEARCH))}</div>
+  </div>
+
+  <div class="block">
+    <div class="block-title">Resposta</div>
+    <div class="block-body">${highlight(escapeHtml(r.resposta), (SEARCH_A || SEARCH))}</div>
+  </div>
+`;
+
+    card.appendChild(evalBox);
+    cards.appendChild(card);
+  }
+
+  // Preenche os nomes dos clientes, quando a planilha estiver configurada
+  populateClientNames();
+
+  if ($('#chartWrap').classList.contains('visible')){
+    ensurePie(getFiltered());
+  }
+}
+
+/* Caixa de avaliação */
+function buildEvalBox(ev){
+  const wrap = document.createElement('div');
+  wrap.className='eval';
+  const clsTxt = ev?.classificacaoEmoji || withEmoji(ev?.classificacao||'Sem classificação');
+  const just = (ev?.justificativa||'').replace(/\n{3,}/g,'\n\n');
+  const docs = (ev?.docs||'').replace(/\n{3,}/g,'\n\n');
+  const sug  = (ev?.sugestao||'').replace(/\n{3,}/g,'\n\n');
+
+  wrap.innerHTML = `
+    <h4>Avaliação do Agente de Curadoria</h4>
+    <div class="kv">
+      <div class="k">Classificação</div><div class="v">${escapeHtml(clsTxt)}</div>
+      <div class="k">Justificativa (curta)</div><div class="v">${escapeHtml(just)}</div>
+      <div class="k">Documentos utilizados</div><div class="v">${escapeHtml(docs)}</div>
+      <div class="k">Sugestão de melhoria</div><div class="v">${escapeHtml(sug)}</div>
+    </div>
+  `;
+  return wrap;
+}
+
+/* ===================== Exportações ===================== */
+function getFiltered(){
+  const textAll  = (SEARCH   || '').trim().toLowerCase();
+const textQOnly= (SEARCH_Q || '').trim().toLowerCase();
+const textAOnly= (SEARCH_A || '').trim().toLowerCase();
+
+const passText = (it) => {
+  if (textAll) {
+    const okAll =
+      (it.pergunta || '').toLowerCase().includes(textAll) ||
+      (it.resposta || '').toLowerCase().includes(textAll) ||
+      (it.codigo   || '').toLowerCase().includes(textAll);
+    if (!okAll) return false;
+  }
+  if (textQOnly) {
+    if (!(it.pergunta || '').toLowerCase().includes(textQOnly)) return false;
+  }
+  if (textAOnly) {
+    if (!(it.resposta || '').toLowerCase().includes(textAOnly)) return false;
+  }
+  return true;
+};
+  const passClass = (it) => (FILTERS.size === 0 || FILTERS.has(it.classificacao));
+  const passClient = (it) => {
+  if (!CLIENT_FILTERS || CLIENT_FILTERS.size === 0) return true;
+  const c = parseUserId(it.user_id).cliente || '';
+  return CLIENT_FILTERS.has(c || '');
+};
+
+  const matchItem = (it) => passClass(it) && passText(it) && passClient(it);
+
+  if (FILTER_MODE === 'items') {
+    return DATA.filter(matchItem).sort(compareByGroup);
+  } else {
+    const matchedGroups = new Set(
+      DATA.filter(matchItem).map(it => groupLabelFromCode(it.codigo))
+    );
+    return DATA
+      .filter(it => matchedGroups.has(groupLabelFromCode(it.codigo)) && passText(it))
+      .sort(compareByGroup);
+  }
+}
+function exportCodes(rows){
+  const lines = ['codigo'];
+  rows.forEach(r=> lines.push(r.codigo));
+  download(`codigos_filtrados.csv`, lines.join('\n'));
+}
+function exportFull(rows){
+  const csv = [ ['grupo','codigo','classificacao','pergunta','resposta','justificativa_curta','documentos_utilizados','sugestao_melhoria'].join(';') ];
+  rows.forEach(r=>{
+    const row = [
+      r.grupo||'',
+      r.codigo||'',
+      r.classificacao||'',
+      (r.pergunta||'').replace(/\s+/g,' ').trim(),
+      (r.resposta||'').replace(/\s+/g,' ').trim(),
+      (r.avaliacao?.justificativa||'').replace(/\s+/g,' ').trim(),
+      (r.avaliacao?.docs||'').replace(/\s+/g,' ').trim(),
+      (r.avaliacao?.sugestao||'').replace(/\s+/g,' ').trim(),
+    ];
+    csv.push(row.map(v=>`"${v.replace(/"/g,'""')}"`).join(';'));
+  });
+  download(`relatorio_completo.csv`, csv.join('\n'));
+}
+
+/* ===== Relatório — Conferência (por CLIENTE) ===== */
+function exportConferencia(rows){
+  // Agrupa por código do cliente (parte antes do ponto). Sem user_id => "não identificado"
+  const map = new Map(); // código -> {total, correta, falta, incorreta}
+  for (const r of rows){
+    const code = parseUserId(r.user_id).cliente || 'não identificado';
+    if (!map.has(code)) map.set(code, { total:0, correta:0, falta:0, incorreta:0 });
+    const acc = map.get(code);
+    acc.total += 1;
+    const c = r.classificacao;
+    if (c === 'Correta') acc.correta += 1;
+    else if (c === 'Falta de Documentação') acc.falta += 1;
+    else if (c === 'Incorreta') acc.incorreta += 1;
+  }
+  const header = ['cliente','total','corretas','falta_documentacao','incorretas'];
+  const csv = [ header.join(';') ];
+  Array.from(map.entries())
+    .sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'pt-BR', {numeric:true}))
+    .forEach(([code, v])=>{
+      const row = [code, v.total, v.correta, v.falta, v.incorreta];
+      csv.push(row.map(x=>String(x).replace(/"/g,'""')).map(x=>`"${x}"`).join(';'));
+    });
+  download(`relatorio_conferencia.csv`, csv.join('\n'));
+}
+
+/* ===== Menu dinâmico de clientes ===== */
+function buildClientFilterMenu(rows){
+  const menu = document.getElementById('clientMenu');
+  if (!menu) return;
+
+  // Contagem por cliente (todos os dados importados)
+  const counts = new Map(); // code -> qtd
+  for (const r of rows){
+    const code = parseUserId(r.user_id).cliente || 'não identificado';
+    counts.set(code, (counts.get(code)||0)+1);
+  }
+  const entries = Array.from(counts.entries())
+    .sort((a,b)=> String(a[0]).localeCompare(String(b[0]), 'pt-BR', {numeric:true}));
+
+  // Monta HTML
+  let html = `<button type="button" data-client="">Todos os clientes</button>`;
+  for (const [code, qtd] of entries){
+    const label = `${code} — ${qtd}`;
+    const val = (code === 'não identificado') ? '' : code;
+    html += `<button type="button" data-client="${val}">${label}</button>`;
+  }
+  menu.innerHTML = html;
+
+  // Eventos
+  menu.querySelectorAll('button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const val = btn.getAttribute('data-client') || '';
+      CLIENT_FILTER = val || null;
+      const fbtn = document.getElementById('btnFilterClient');
+      if (fbtn) fbtn.textContent = CLIENT_FILTER ? `Cliente: ${CLIENT_FILTER}` : 'Filtrar por cliente';
+      menu.classList.add('hidden');
+      render();
+    });
+  });
+}
+
+/* ===================== Gráfico (toggle) ===================== */
+function computeStats(rows){
+  const map = new Map();
+  rows.forEach(r=>{ const k = r.classificacao; map.set(k, (map.get(k)||0)+1); });
+  const order = ['Correta','Incorreta','Falta de Documentação','Pergunta investigativa','Sem classificação'];
+  const labels = [], values = [];
+  order.forEach(k=>{ if (map.has(k)){ labels.push(withEmoji(k)); values.push(map.get(k)); } });
+  return { labels, values, total: values.reduce((a,b)=>a+b,0) };
+}
+function buildLegendHTML(labels){
+  const list = $('#chartLegendList'); list.innerHTML = '';
+  labels.forEach(l=>{
+    const li = document.createElement('li');
+    li.className = 'legend-item';
+    li.innerHTML = `<span class="swatch" style="background:${classColor(l)}"></span><span>${l}</span>`;
+    list.appendChild(li);
+  });
+}
+function ensurePie(rows){
+  const wrap = $('#chartWrap'); wrap.classList.add('visible');
+  const ctx = $('#pieChart').getContext('2d');
+  const {labels, values, total} = computeStats(rows);
+
+  if (pieChart){ pieChart.destroy(); }
+  buildLegendHTML(labels);
+  const bgColors = labels.map(l => classColor(l));
+
+  pieChart = new Chart(ctx, {
+    type: 'pie',
+    data: { labels, datasets: [{ data: values, backgroundColor: bgColors, borderWidth: 0 } ] },
+    options: {
+      maintainAspectRatio: false,
+      plugins: { legend: { display:false }, tooltip: { enabled: true } }
+    }
+  });
+
+  const counts = labels.map((l,i)=> `${l}: ${values[i]} (${Math.round(values[i]*100/(total||1))}%)`).join('  •  ');
+  $('#chartCounts').textContent = counts;
+}
+function toggleChart(){
+  const wrap = $('#chartWrap');
+  const showing = !wrap.classList.contains('visible');
+  if (showing){
+    ensurePie(getFiltered());
+    $('#btnChart').textContent = 'Ocultar gráfico de assertividade';
+  }else{
+    wrap.classList.remove('visible');
+    if (pieChart){ pieChart.destroy(); pieChart = null; }
+    $('#btnChart').textContent = 'Exibir gráfico de assertividade';
+  }
+}
+
+/* ===================== Eventos UI ===================== */
+document.getElementById('cards').addEventListener('change', (e)=>{
+  if (e.target.classList.contains('mark-done')){
+    const code = e.target.getAttribute('data-code');
+    const checked = e.target.checked;
+
+    setDone(code, checked);
+
+    const card = e.target.closest('.card');
+    card?.classList.toggle('done', checked);
+
+    const corr = card.querySelector('.corr-chip');
+corr?.classList.toggle('is-on', checked);
+
+    return;
+  }
+
+  if (e.target.classList.contains('cls-select')){
+    const code = e.target.getAttribute('data-code');
+    const val  = e.target.value;
+    const row = DATA.find(d=>d.codigo===code);
+    if (row){
+      row.classificacao = val;
+      row.classificacaoEmoji = withEmoji(val);
+    }
+    render();
+    return;
+  }
+});
+
+$$('input[name="filterMode"]').forEach(r=>{
+  r.addEventListener('change', (e)=>{
+    FILTER_MODE = e.target.value;
+    render();
+  });
+});
+
+$('#fileInput').addEventListener('change', async (ev)=>{
+  const f = ev.target.files?.[0]; if (!f) return;
+  CURRENT_FILE_NAME = f.name || '';
+  $('#fileName').textContent = CURRENT_FILE_NAME;
+  const raw = await f.text();
+  try{ RAW = JSON.parse(raw); }catch{ alert('JSON inválido.'); return; }
+
+  DATA = parseJson(RAW);
+  if (!DATA.length){ alert('Nada encontrado. Verifique o formato (grupo/interacoes OU blocos do ASSISTANT com Interação/Pergunta/Resposta).'); return; }
+
+  ALL_CLASSES = Array.from(new Set(DATA.map(d=>d.classificacao))).sort((a,b)=>{
+    const prio = ['Correta','Incorreta','Falta de Documentação','Pergunta investigativa','Sem classificação'];
+    const ia = prio.indexOf(a), ib = prio.indexOf(b);
+    return (ia===-1?99:ia) - (ib===-1?99:ib) || a.localeCompare(b);
+  });
+    FILTERS.clear();
+  buildFilters();
+  render();
+
+  // Exibe os botões na barra de resultados
+const bar = document.querySelector('#totalsPanel .result-bar');
+const chartBtn = $('#btnChart');
+if (bar && chartBtn){ bar.appendChild(chartBtn); }
+$('#btnFilterClient')?.classList.remove('hidden');
+$('#btnClearClients')?.classList.remove('hidden');
+// Estado inicial dos textos
+(function(){
+  const btn = document.getElementById('btnFilterClient');
+  const clr = document.getElementById('btnClearClients');
+  const n = (CLIENT_FILTERS && CLIENT_FILTERS.size) ? CLIENT_FILTERS.size : 0;
+  if (btn) btn.textContent = n === 0 ? 'Filtrar por cliente' : (n === 1 ? `Cliente: ${[...CLIENT_FILTERS][0]}` : `Clientes: ${n}`);
+  if (clr) clr.disabled = n === 0;
+})();
+
+  const wrap = $('#chartWrap'); wrap.classList.remove('visible');
+  if (pieChart){ pieChart.destroy(); pieChart = null; }
+  $('#btnChart').textContent = 'Exibir gráfico de assertividade';
+});
+
+$('#searchBox').addEventListener('input', e=>{ SEARCH = e.target.value||''; render(); });
+$('#searchQ').addEventListener('input', e=>{ SEARCH_Q = e.target.value || ''; render(); });
+$('#searchA').addEventListener('input', e=>{ SEARCH_A = e.target.value || ''; render(); });
+$('#exportConferencia').addEventListener('click', ()=>{
+  const rows = getFiltered(); if (!rows.length) return alert('Nada para exportar.');
+  exportConferencia(rows);
+});
+$('#btnChart').addEventListener('click', toggleChart);
+$('#btnFilterClient').addEventListener('click', ()=>{ if (typeof openClientModal==='function') openClientModal(); });
+$('#btnClearClients')?.addEventListener('click', ()=>{
+  CLIENT_FILTERS.clear();
+  const btn = document.getElementById('btnFilterClient');
+  const clr = document.getElementById('btnClearClients');
+  if (btn) btn.textContent = 'Filtrar por cliente';
+  if (clr) clr.disabled = true;
+  render();
+});
+
+/* Modo foco / compacto */
+$('#focusBtn').addEventListener('click', ()=>{
+  const on = document.body.classList.toggle('focus');
+  $('#focusBtn').textContent = on ? 'Sair do foco' : 'Modo Foco';
+});
+$('#compactBtn').addEventListener('click', ()=>{
+  const on = document.body.classList.toggle('compact');
+  $('#compactBtn').textContent = on ? 'Sair do compacto' : 'Modo Compacto';
+});
+
+/* ===================== Persistência de marcação ===================== */
+function safeFileKey(){
+  // Usa o nome do arquivo atual; se não houver, cai em "GLOBAL"
+  const n = (CURRENT_FILE_NAME || 'GLOBAL').toLowerCase();
+  return n.replace(/[^a-z0-9]+/g,'-'); // normaliza
+}
+function getDoneKey(code){
+  // Agora a chave inclui o arquivo para isolar marcações por JSON
+  return 'poscuradoria_done_' + safeFileKey() + '_' + code;
+}
+function getDone(code){
+  try{ return localStorage.getItem(getDoneKey(code)) === '1'; }catch(e){ return false; }
+}
+function setDone(code, on){
+  try{ localStorage.setItem(getDoneKey(code), on ? '1' : '0'); }catch(e){}
+}
+</script>
+
+<script>
+/* App switcher */
+(function(){
+  const wrap  = document.querySelector('.app-switcher');
+  const btn   = document.getElementById('appSwitcherBtn');
+  const menu  = document.getElementById('appSwitcherMenu');
+  if (!wrap || !btn || !menu) return;
+  function toggle(open){ wrap.classList.toggle('open', open ?? !wrap.classList.contains('open')); }
+  btn.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
+  document.addEventListener('click', (e)=>{ if (!wrap.contains(e.target)) toggle(false); });
+  document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') toggle(false); });
+})();
+</script>
+<!-- Ajuda (FAB) -->
+<div class="help-fab" id="helpFab" aria-live="polite">
+  <span class="help-hint" tabindex="0" aria-label="Ajuda: passo a passo" role="button">?</span>
+  <div class="help-bubble" role="dialog" aria-modal="false" aria-label="Passo a passo da Curadoria">
+    <h4>🧠 <b>Passo a passo da Curadoria</b></h4>
+
+    <p><b>1. Conversor — Preparar os Arquivos</b></p>
+    <p>Use este programa para converter documentos da base da Kiara (DOCX, PDF, RTF, etc.) para <b>.TXT</b>. Padroniza conteúdos para envio ao Agente de Curadoria.</p>
+    <p><b>Recomendações</b>:</p>
+    <ul>
+      <li>Converta apenas o que é útil ao treinamento/avaliação.</li>
+      <li>Agrupe informações em menos arquivos (evite centenas de arquivos pequenos).</li>
+      <li>Depois da conversão, suba os <b>.TXT</b> na Base de Dados do Agente de Curadoria.</li>
+    </ul>
+
+    <p style="margin-top:10px"><b>2. Transmissor — Enviar as Interações para Avaliação</b></p>
+    <p>Transmita as interações (perguntas e respostas) que serão avaliadas.</p>
+    <p><b>Necessário</b>: ID do Bot de Curadoria e <b>API Key</b> (nunca compartilhe).</p>
+    <p><b>Como funciona</b>: após preencher os dados e importar o JSON do período, clique em <b>ENVIAR</b>. O Agente inicia a avaliação automaticamente.</p>
+    <p class="muted">Dica: transmitir no mesmo dia em que a curadoria será feita.</p>
+
+    <p style="margin-top:10px"><b>3. Workspace — Visualizar as Avaliações</b></p>
+    <p>Depois do processamento, o Agente gera um <b>.JSON</b> com as classificações da Kiara.</p>
+    <p><b>No Workspace você pode</b>: importar o retorno, visualizar avaliações, e filtrar por <em>Correta, Incorreta, Falta de Documentação</em>…</p>
+
+    <p style="margin-top:10px"><b>Fluxo ideal</b>: Conversor → Transmissor → Workspace</p>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const fab = document.getElementById('helpFab');
+    if (!fab) return;
+    const hint = fab.querySelector('.help-hint');
+    const bubble = fab.querySelector('.help-bubble');
+    function toggle(open){ fab.classList.toggle('open', open ?? !fab.classList.contains('open')); }
+    hint.addEventListener('click', (e)=>{ e.stopPropagation(); toggle(); });
+    hint.addEventListener('keydown', (e)=>{ if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }});
+    document.addEventListener('click', (e)=>{ if (!fab.contains(e.target)) toggle(false); });
+    document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape') toggle(false); });
+  })();
+</script>
+<!-- Modal: Selecionar Cliente -->
+<div id="clientModal" class="client-modal" aria-hidden="true">
+  <div class="client-modal__backdrop" id="clientModalBackdrop" tabindex="-1"></div>
+  <div class="client-modal__panel" role="dialog" aria-modal="true" aria-label="Selecionar cliente">
+    <div class="client-modal__head">
+      <div>Selecionar cliente</div>
+      <button id="clientModalClose" class="btn" aria-label="Fechar">Fechar</button>
+    </div>
+    <div class="client-modal__body">
+      <div class="client-modal__search">
+        <input id="clientSearch" type="text" placeholder="Buscar código ou nome do cliente..." autocomplete="off">
+      </div>
+      <div id="clientList" class="client-modal__list">
+        <div class="client-modal__empty">Nenhum cliente encontrado.</div>
+      </div>
+    </div>
+    <div class="client-modal__foot">
+  <button id="clientApply" class="btn primary">Aplicar</button>
+  <button id="clientClear" class="btn">Limpar seleção</button>
+  <button id="clientModalClose" class="btn">Cancelar</button>
+</div>
+  </div>
+</div>
+
+<script>
+/* ===== MODAL de clientes (UI) ===== */
+function openClientModal(){ try{
+  buildClientModalList(DATA);
+  document.getElementById('clientModal').classList.add('open');
+  const sb = document.getElementById('clientSearch'); if (sb){ sb.value=''; sb.focus(); }
+}catch{} }
+
+function closeClientModal(){
+  const m = document.getElementById('clientModal'); if (m) m.classList.remove('open');
+}
+
+/* Lista de clientes distinta (pelo código, parte antes do ponto) */
+function distinctClientCodes(rows){
+  const set = new Set();
+  (rows||[]).forEach(r=>{
+    const c = (parseUserId(r.user_id)||{}).cliente || '';
+    if (c) set.add(c);
+  });
+  return Array.from(set).sort((a,b)=> a.localeCompare(b));
+}
+
+/* Constrói a lista (com nomes, se houver planilha configurada) */
+async function buildClientModalList(rows){
+  const list = document.getElementById('clientList');
+  if (!list) return;
+  const codes = distinctClientCodes(rows);
+  const map = await loadClientMap(); // segura se não configurado
+  if (!codes.length){
+    list.innerHTML = '<div class="client-modal__empty">Nenhum cliente encontrado.</div>';
+    return;
+  }
+  list.innerHTML = codes.map(code=>{
+  const name = map.get(code) || '';
+  const label = name ? `${code} — ${name}` : code;
+  const checked = (CLIENT_FILTERS && CLIENT_FILTERS.has(code)) ? 'checked' : '';
+  return `<label class="client-option">
+            <input type="checkbox" data-code="${escapeHtml(code)}" ${checked}>
+            <span>${escapeHtml(label)}</span>
+          </label>`;
+}).join('');
+}
+
+/* Interações do modal (multiseleção) */
+document.addEventListener('click', function(e){
+  const id = e.target.id;
+  if (id === 'clientModalClose' || id === 'clientModalBackdrop'){ closeClientModal(); return; }
+  if (id === 'clientClear'){
+    CLIENT_FILTERS.clear();
+    const btn = document.getElementById('btnFilterClient'); if (btn) btn.textContent = 'Filtrar por cliente';
+    const clr = document.getElementById('btnClearClients'); if (clr) clr.disabled = true;
+    if (typeof render === 'function') render();
+    closeClientModal(); return;
+  }
+  if (id === 'clientApply'){
+    const sel = Array.from(document.querySelectorAll('#clientList input[type="checkbox"]:checked'))
+      .map(cb => cb.getAttribute('data-code') || '');
+    CLIENT_FILTERS = new Set(sel);
+    const btn = document.getElementById('btnFilterClient');
+    const clr = document.getElementById('btnClearClients');
+    const n = CLIENT_FILTERS.size;
+    if (btn) btn.textContent = n === 0 ? 'Filtrar por cliente' : (n === 1 ? `Cliente: ${[...CLIENT_FILTERS][0]}` : `Clientes: ${n}`);
+    if (clr) clr.disabled = n === 0;
+    if (typeof render === 'function') render();
+    closeClientModal(); return;
+  }
+});
+document.addEventListener('keydown', function(e){ if (e.key === 'Escape') closeClientModal(); });
+document.getElementById('clientSearch')?.addEventListener('input', function(e){
+  const q = (e.target.value||'').toLowerCase();
+  document.querySelectorAll('#clientList .client-option').forEach(row=>{
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+});
+</script>
+
+</body>
+</html>
