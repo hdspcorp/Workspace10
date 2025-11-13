@@ -453,6 +453,39 @@ aside{ top:18px !important; border-color:var(--stroke) !important; background:
     display: contents;
   }
 </style>
+
+<!-- Scrollbar no mesmo padrão visual do app -->
+<style id="scrollbar-theme">
+  /* Firefox */
+  *{
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255,255,255,.22) var(--panel-2);
+  }
+
+  /* WebKit (Chrome/Edge/Opera/Safari) */
+  ::-webkit-scrollbar{
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track{
+    background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02)), var(--panel-2);
+    border: 1px solid var(--stroke);
+    border-radius: 12px;
+  }
+  ::-webkit-scrollbar-thumb{
+    background: linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.06));
+    border: 1px solid var(--stroke);
+    border-radius: 10px;
+    /* evita “sangrar” para fora do track em alguns WebKit */
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover{
+    background: linear-gradient(180deg, rgba(255,255,255,.16), rgba(255,255,255,.10));
+  }
+  ::-webkit-scrollbar-corner{
+    background: var(--panel-2);
+  }
+</style>
 </head>
 <body>
 <header>
